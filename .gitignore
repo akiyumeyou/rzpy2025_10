@@ -1,0 +1,165 @@
+# Python関連
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 仮想環境
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+elderly_safety_env/
+elderly_chat_env/
+
+# 環境変数・機密情報
+.env
+*.env
+.env.local
+.env.production
+.env.development
+
+# 認証・API キー
+credentials.json
+*.key
+*.pem
+*.p12
+api_keys.json
+secrets.json
+
+# データベース・データファイル
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+data/*.sqlite*
+data/conversations.db
+data/session_*.json
+data/conversations_*.csv
+*.log
+
+# Claude Code関連
+.claude/
+.cursor/
+.copilot/
+
+# Serena関連
+.serena/
+
+# IDE・エディタ関連
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# システムファイル
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ログファイル
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 一時ファイル
+tmp/
+temp/
+*.tmp
+*.temp
+
+# バックアップファイル
+*.bak
+*.backup
+*~
+
+# テスト関連
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# macOS関連
+.AppleDouble
+.LSOverride
+Icon
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows関連
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# 音声ファイル（テスト用）
+*.wav
+*.mp3
+*.m4a
+recordings/
+assets/sounds/recorded_*
+
+# 高齢者向け安否確認システム固有
+data/conversations.db*
+data/session_*.json
+data/conversations_*.csv
+data/emotion_*.json
+logs/*.log
+modules/__pycache__/
+
+# 通知関連の機密情報
+notification_config.json
+email_credentials.json
+line_bot_config.json
+
+# 開発用フォルダ（コミット不要）
+agents/
+prompts/

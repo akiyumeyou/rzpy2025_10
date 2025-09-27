@@ -1,0 +1,13 @@
+# OpenAI Realtime API
+openai>=1.0.0
+websockets>=11.0.0
+
+# 音声処理（将来的に使用）
+speech-recognition>=3.10.0
+pyttsx3>=2.90
+
+# データ処理
+python-dotenv>=1.0.0
+
+# 非同期処理
+asyncio
