@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+
+話したらいいのほんとに使い物にならないわ終了こんにちは今日も元気に過ごしていますあなたの1日はどうですか元気大丈夫ですかそれは心配ですね少し休んで水分をしっかりと取ってみてください全然人の話聞かないのよねなんで水分の話なのそれは困りますね何か気になることがあるのでしょうかそれともすみません咳が出ていると聞いたので水分補給をお勧めしましたが出ていません#!/usr/bin/env python3
 """
 シンプル音声会話システム
 Whisper + GPT-4o + TTS
@@ -6,9 +7,10 @@ Whisper + GPT-4o + TTS
 """
 
 import asyncio
+import io
+import tempfile
 import pyaudio
 import wave
-import tempfile
 import openai
 import os
 import sys
@@ -34,7 +36,7 @@ class SimpleVoiceChat:
         self.client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
 
         # 音声設定
-        self.chunk = 1024
+        self.chunk = 512
         self.format = pyaudio.paInt16
         self.channels = 1
         self.rate = 16000
@@ -75,7 +77,7 @@ class SimpleVoiceChat:
         frames = []
         is_recording = False
         silence_count = 0
-        max_silence = 30  # 約1.5秒の無音で終了
+        max_silence = 15  # 約0.75秒の無音で終了
 
         try:
             while True:
@@ -119,26 +121,24 @@ class SimpleVoiceChat:
         try:
             print("🔄 音声認識中...")
 
-            # 一時WAVファイル作成
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
-                with wave.open(temp_wav.name, 'wb') as wav_file:
-                    wav_file.setnchannels(self.channels)
-                    wav_file.setsampwidth(self.audio.get_sample_size(self.format))
-                    wav_file.setframerate(self.rate)
-                    wav_file.writeframes(audio_data)
+            import io
 
-                # Whisper APIで音声認識
-                with open(temp_wav.name, 'rb') as audio_file:
-                    transcript = self.client.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=audio_file,
-                        language="ja"
-                    )
+            buffer = io.BytesIO()
+            with wave.open(buffer, 'wb') as wav_file:
+                wav_file.setnchannels(self.channels)
+                wav_file.setsampwidth(self.audio.get_sample_size(self.format))
+                wav_file.setframerate(self.rate)
+                wav_file.writeframes(audio_data)
 
-                # 一時ファイル削除
-                os.unlink(temp_wav.name)
+            buffer.seek(0)
 
-                return transcript.text.strip()
+            transcript = self.client.audio.transcriptions.create(
+                model="whisper-1",
+                file=("audio.wav", buffer, "audio/wav"),
+                language="ja"
+            )
+
+            return transcript.text.strip()
 
         except Exception as e:
             logger.error(f"音声認識エラー: {e}")
