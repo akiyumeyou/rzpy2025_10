@@ -33,8 +33,15 @@ async def run_realtime_conversation():
     def handle_error(error: str):
         print(f"⚠️ エラー: {error}")
 
+    async def on_transcription_async(text: str):
+        handle_transcription(text)
+        await handler._generate_response(text)
+
+    def on_transcription_sync(text: str):
+        asyncio.create_task(on_transcription_async(text))
+
     handler.set_callbacks(
-        on_transcription=handle_transcription,
+        on_transcription=on_transcription_sync,
         on_error=handle_error,
     )
 

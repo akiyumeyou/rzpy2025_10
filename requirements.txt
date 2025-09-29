@@ -1,13 +1,20 @@
-# OpenAI Realtime API
+# OpenAI API（音声認識・AI応答・TTS）
 openai>=1.0.0
-websockets>=11.0.0
 
-# 音声処理（将来的に使用）
-speech-recognition>=3.10.0
-pyttsx3>=2.90
+# 音声処理
+pyaudio>=0.2.11
 
-# データ処理
+# WebSocket クライアント
+websockets>=11.0
+
+# 設定管理
 python-dotenv>=1.0.0
 
-# 非同期処理
-asyncio
+# Google Sheets連携
+gspread>=5.0.0
+google-auth>=2.0.0
+
+# メール通知
+# smtplib は標準ライブラリのため不要
+
+# 数学・データ処理（標準ライブラリのmathを使用）

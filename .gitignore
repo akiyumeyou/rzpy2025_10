@@ -41,12 +41,14 @@ elderly_chat_env/
 .env.development
 
 # 認証・API キー
+credentials/
 credentials.json
 *.key
 *.pem
 *.p12
 api_keys.json
 secrets.json
+google_service_account.json
 
 # データベース・データファイル
 *.db
