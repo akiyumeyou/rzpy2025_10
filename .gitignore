@@ -43,6 +43,8 @@ elderly_chat_env/
 # 認証・API キー
 credentials/
 credentials.json
+data/token.json
+data/credentials.json
 *.key
 *.pem
 *.p12
