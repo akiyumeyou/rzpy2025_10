@@ -41,6 +41,28 @@ class RealtimeCareApp:
         "ストップ",
     ]
 
+    # 相槌・フィラー（無視するべき短い発話）
+    FILLER_WORDS = [
+        "うん",
+        "ええ",
+        "あー",
+        "えー",
+        "んー",
+        "うーん",
+        "えっと",
+        "あのー",
+        "その",
+        "まあ",
+        "ほら",
+        "なんか",
+        "へー",
+        "ふーん",
+        "はあ",
+        "そうそう",
+        "ああ",
+        "おお",
+    ]
+
     def __init__(self) -> None:
         if not Config.validate_config():
             raise RuntimeError("環境変数の設定が不足しています。Config.validate_config() を確認してください。")
@@ -102,9 +124,21 @@ class RealtimeCareApp:
             self.user_messages.append(text)
             logger.info(f"ユーザー: {text}")
 
+            # 【重要】ユーザーの新しい発話があったら、進行中のAI応答をキャンセル
+            if self.handler.response_in_progress:
+                logger.info("🛑 ユーザーの新しい発話を検知 - 進行中のAI応答をキャンセルします")
+                asyncio.create_task(self.handler._cancel_active_response())  # pylint: disable=protected-access
+
+            # 終了コマンドチェック
             if self._is_end_command(text):
                 self.running = False
                 asyncio.create_task(self.handler.stop_conversation())
+                return
+
+            # 相槌・フィラーチェック（無視する）
+            if self._is_filler_or_backchannel(text):
+                logger.info(f"相槌またはフィラーのため応答をスキップ: '{text}'")
+                # 相槌でもAI応答をキャンセル済みなので、新しい応答は生成しない
                 return
 
             asyncio.create_task(queue_response(text))
@@ -264,6 +298,27 @@ class RealtimeCareApp:
     @staticmethod
     def _is_end_command(text: str) -> bool:
         return any(command in text for command in RealtimeCareApp.END_COMMANDS)
+
+    @staticmethod
+    def _is_filler_or_backchannel(text: str) -> bool:
+        """相槌やフィラー（意味のない短い発話）かどうかを判定"""
+        if not text or len(text.strip()) == 0:
+            return True  # 空文字は無視
+        
+        # 空白・句読点を除去して正規化
+        normalized = text.strip().replace("。", "").replace("、", "").replace(" ", "")
+        
+        # 非常に短い発話（2文字以下）は相槌と判定
+        if len(normalized) <= 2:
+            return True
+        
+        # フィラーワードリストと完全一致または含まれるかチェック
+        for filler in RealtimeCareApp.FILLER_WORDS:
+            if normalized == filler or normalized.startswith(filler):
+                logger.info(f"🔇 相槌/フィラーを検知: '{text}' - AI応答をスキップします")
+                return True
+        
+        return False
 
     def _build_time_greeting(self) -> str:
         now = datetime.now()

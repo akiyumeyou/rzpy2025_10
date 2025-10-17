@@ -200,10 +200,15 @@ class ConversationDatabase:
 
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = db_path or Config.DATABASE_PATH
-        self._initialize_database()
+        self._initialized = False
+        # 遅延初期化: 実際にデータベースにアクセスする時まで初期化を遅らせる
+        # self._initialize_database()
 
     def _initialize_database(self):
         """データベースの初期化"""
+        if self._initialized:
+            return  # 既に初期化済みの場合はスキップ
+
         try:
             # データベースディレクトリの作成
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
@@ -248,6 +253,7 @@ class ConversationDatabase:
 
                 conn.commit()
                 logger.info(f"データベース初期化完了: {self.db_path}")
+                self._initialized = True
 
         except Exception as e:
             logger.error(f"データベース初期化エラー: {e}")
@@ -255,6 +261,7 @@ class ConversationDatabase:
 
     def save_conversation(self, result: ConversationResult, emotion_analysis: EmotionAnalysis) -> int:
         """会話記録を保存"""
+        self._initialize_database()  # 初回アクセス時に初期化
         try:
             with sqlite3.connect(self.db_path) as conn:
                 # 会話記録の保存
@@ -305,6 +312,7 @@ class ConversationDatabase:
 
     def get_recent_conversations(self, days: int = 7) -> List[ConversationRecord]:
         """最近の会話記録を取得"""
+        self._initialize_database()  # 初回アクセス時に初期化
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
@@ -343,6 +351,7 @@ class ConversationDatabase:
 
     def get_emotion_trends(self, days: int = 30) -> Dict:
         """感情の傾向を分析"""
+        self._initialize_database()  # 初回アクセス時に初期化
         try:
             with sqlite3.connect(self.db_path) as conn:
                 since_date = datetime.now() - timedelta(days=days)
@@ -380,6 +389,7 @@ class ConversationDatabase:
 
     def mark_followup_completed(self, conversation_id: int):
         """フォローアップ完了をマーク"""
+        self._initialize_database()  # 初回アクセス時に初期化
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("""

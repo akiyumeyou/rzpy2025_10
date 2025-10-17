@@ -14,7 +14,6 @@ python-dotenv>=1.0.0
 gspread>=5.0.0
 google-auth>=2.0.0
 
-# メール通知
-# smtplib は標準ライブラリのため不要
-
-# 数学・データ処理（標準ライブラリのmathを使用）
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib

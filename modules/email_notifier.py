@@ -38,16 +38,20 @@ class EmailNotifier:
         self.token_path = Path(os.getenv("GMAIL_TOKEN_PATH", "data/token.json"))
 
         self.service = None
-        self.creds = self._load_credentials()
-        if self.creds:
-            try:
-                self.service = build("gmail", "v1", credentials=self.creds)
-                logger.info("メール通知システムが初期化されました")
-            except Exception as exc:  # noqa: BLE001
-                logger.error(f"Gmail API 初期化に失敗しました: {exc}")
-                self.service = None
-        else:
-            logger.warning("メール通知の設定が不完全です")
+        self.creds = None
+        self._initialized = False
+
+        # 遅延初期化: 実際に使用される時まで初期化を遅らせる
+        # self.creds = self._load_credentials()
+        # if self.creds:
+        #     try:
+        #         self.service = build("gmail", "v1", credentials=self.creds)
+        #         logger.info("メール通知システムが初期化されました")
+        #     except Exception as exc:  # noqa: BLE001
+        #         logger.error(f"Gmail API 初期化に失敗しました: {exc}")
+        #         self.service = None
+        # else:
+        #     logger.warning("メール通知の設定が不完全です")
 
     def _parse_family_emails(self) -> List[str]:
         raw = os.getenv("FAMILY_EMAILS", "")
@@ -93,7 +97,26 @@ class EmailNotifier:
             logger.error(f"Gmail 認証処理でエラーが発生しました: {exc}")
             return None
 
+    def _ensure_initialized(self) -> None:
+        """初回アクセス時に初期化を実行"""
+        if self._initialized:
+            return
+
+        self.creds = self._load_credentials()
+        if self.creds:
+            try:
+                self.service = build("gmail", "v1", credentials=self.creds)
+                logger.info("メール通知システムが初期化されました")
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"Gmail API 初期化に失敗しました: {exc}")
+                self.service = None
+        else:
+            logger.warning("メール通知の設定が不完全です")
+
+        self._initialized = True
+
     def is_available(self) -> bool:
+        self._ensure_initialized()
         return self.service is not None
 
     def should_notify(

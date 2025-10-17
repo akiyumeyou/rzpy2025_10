@@ -33,15 +33,20 @@ class GoogleSheetsManager:
         self.worksheet = None
         self.credentials_path = os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google_service_account.json')
         self.spreadsheet_id = os.getenv('GOOGLE_SPREADSHEET_ID', '')
+        self._initialized = False
 
         if not gspread:
             logger.warning("gspread モジュールがインストールされていません。Google Sheets機能を無効化します。")
             return
 
-        self._initialize_client()
+        # 遅延初期化: 実際に使用される時まで初期化を遅らせる
+        # self._initialize_client()  # コメントアウト
 
     def _initialize_client(self):
         """Google Sheetsクライアントの初期化"""
+        if self._initialized:
+            return  # 既に初期化済みの場合はスキップ
+
         try:
             if not os.path.exists(self.credentials_path):
                 logger.warning(f"Google サービスアカウント認証ファイルが見つかりません: {self.credentials_path}")
@@ -67,6 +72,8 @@ class GoogleSheetsManager:
                 self._initialize_spreadsheet()
             else:
                 logger.warning("GOOGLE_SPREADSHEET_ID が設定されていません")
+
+            self._initialized = True
 
         except FileNotFoundError:
             logger.error(f"認証ファイルが見つかりません: {self.credentials_path}")
@@ -127,6 +134,9 @@ class GoogleSheetsManager:
 
     def is_available(self) -> bool:
         """Google Sheets機能が利用可能かチェック"""
+        if not self._initialized:
+            self._initialize_client()  # 初回アクセス時に初期化
+
         return (gspread is not None and
                 self.client is not None and
                 self.worksheet is not None)

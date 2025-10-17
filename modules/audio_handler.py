@@ -34,7 +34,7 @@ class RealtimeAudioHandler:
     def __init__(self, audio_config: Optional[AudioConfig] = None):
         self.audio_config = audio_config or AudioConfig()
         self.websocket = None
-        self.audio = pyaudio.PyAudio()
+        self.audio = None  # 遅延初期化: 実際に音声ストリームを使う時まで初期化を遅らせる
         self.is_connected = False
         self.is_recording = False
         self.is_playing = False
@@ -53,7 +53,7 @@ class RealtimeAudioHandler:
         self.response_in_progress = False
         self.last_speech_time = 0  # レート制限用
         self.awaiting_audio_delay = False
-        self.speak_delay_seconds = 1.0  # AI音声再生前の待機時間
+        self.speak_delay_seconds = 1.0  # AI音声再生前の待機時間（ゆっくり話すため長めに）
         self.response_cooldown_until = 0.0
         self.current_response_id: Optional[str] = None
         self.suppress_audio_output = False
@@ -71,37 +71,25 @@ class RealtimeAudioHandler:
             },
             "turn_detection": {
                 "type": "server_vad",
-                "threshold": 0.75,
-                "prefix_padding_ms": 300,
-                "silence_duration_ms": 900
+                "threshold": 0.85,          # 物音に反応しにくく（感度を下げる）
+                "prefix_padding_ms": 700,   # 発話の頭が切れないよう長めに
+                "silence_duration_ms": 1500 # ゆっくり話す人向けに長めに
             },
             "temperature": 0.7,
-            "max_response_output_tokens": 100
+            "max_response_output_tokens": 100  # ゆっくり話す余裕を持たせる
         }
 
     def _load_conversation_instructions(self) -> str:
         """会話指示を読み込み"""
-        return """あなたは高齢者向けの安否確認AIアシスタントです。
-
-【重要な指針】
-- 親しみやすく、優しい話し方で接してください
-- 簡潔で分かりやすい言葉を使ってください
-- 相手の気持ちに寄り添い、無理に話を続けさせないでください
-- 体調や気分について自然に聞いてください
-- 必要に応じて家族や医療機関への連絡を提案してください
-- ゆっくり落ち着いた口調で、短い間を置きながら話してください
-- 相手の発話が終わるまで必ず待ち、重ならないようにしてください
-- 応答は必ず日本語で、1〜2文以内にまとめてください
-- 同じ質問を繰り返さず、聞き返す場合は理由を添えてください
-
-【会話の流れ】
-1. 時間に応じた自然な挨拶
-2. 体調・気分の確認
-3. 簡単な日常会話
-4. 必要に応じたサポートの提案
-5. 自然な会話の終了
-
-常に相手のペースに合わせ、押し付けがましくならないよう注意してください。"""
+        return (
+            "あなたは高齢者と会話する優しい聞き役です。\n"
+            "【重要】ゆっくり、はっきり、落ち着いた調子で話してください。1文ずつ区切って、間を取りながら話します。\n"
+            "必ず1〜2文以内の短い応答で、相槌や共感を最優先してください。\n"
+            "相手の言葉を復唱し、『そうですね』『それはいいですね』『なるほど』などを交えつつ、"
+            "話の続きを促してください。\n"
+            "沈黙が続くときは『最近の楽しいこと』『思い出話』『軽い脳トレ質問』など"
+            "安全な話題を1つだけ提案します。焦らず、ゆったりと対話してください。"
+        )
 
     async def start_realtime_session(self) -> bool:
         """Realtime APIセッション開始"""
@@ -324,6 +312,13 @@ class RealtimeAudioHandler:
 
             elif message_type == "input_audio_buffer.speech_started":
                 logger.info("🎤 音声入力検知開始")
+                
+                # AI応答中の割り込みを抑制（応答が途中で切れるのを防ぐ）
+                if self.response_in_progress:
+                    logger.info("⚠️ AI応答中のため、音声入力検知を抑制します")
+                    # 応答完了まで待つ（割り込みを許可しない）
+                    return
+                
                 self.last_speech_time = time.time()
 
             elif message_type == "input_audio_buffer.speech_stopped":
@@ -365,11 +360,17 @@ class RealtimeAudioHandler:
                 self.current_response_id = data.get("response", {}).get("id")
 
             elif message_type == "response.done":
-                logger.info("応答完了")
+                # キャンセルされた応答かどうかをチェック
+                if self.suppress_audio_output:
+                    logger.info("✅ 応答完了（キャンセル済み）")
+                else:
+                    logger.info("✅ 応答完了")
+                
                 self.response_in_progress = False
-                self.response_cooldown_until = time.time() + 3.0
+                self.response_cooldown_until = time.time() + 2.0  # ゆっくり会話するため少し短めに
                 self.current_response_id = None
-                self.suppress_audio_output = False
+                self.suppress_audio_output = False  # 次の応答のためにリセット
+                
                 if self.on_response_end:
                     self.on_response_end()
 
@@ -387,19 +388,30 @@ class RealtimeAudioHandler:
 
     async def _cancel_active_response(self):
         """進行中の応答をキャンセル"""
-        if not self.current_response_id:
+        if not self.response_in_progress and not self.current_response_id:
+            logger.debug("キャンセル対象の応答がありません")
             return
 
         try:
-            cancel_payload = {
-                "type": "response.cancel",
-                "response": {
-                    "id": self.current_response_id
-                }
-            }
-            await self.websocket.send(json.dumps(cancel_payload))
-            logger.info("🛑 進行中の応答をキャンセル")
+            # 音声出力を即座に停止
             self.suppress_audio_output = True
+            
+            # サーバー側の応答生成をキャンセル
+            if self.current_response_id:
+                cancel_payload = {
+                    "type": "response.cancel",
+                    "response_id": self.current_response_id
+                }
+                await self.websocket.send(json.dumps(cancel_payload))
+                logger.info(f"🛑 進行中の応答をキャンセル (ID: {self.current_response_id})")
+            else:
+                # response_idがまだない場合は、次の応答が来たらキャンセル
+                logger.info("🛑 応答をキャンセル（IDなし）")
+            
+            # フラグをリセット
+            self.response_in_progress = False
+            self.awaiting_audio_delay = False
+            
         except Exception as e:
             logger.error(f"応答キャンセルエラー: {e}")
 
@@ -412,7 +424,12 @@ class RealtimeAudioHandler:
                 await asyncio.sleep(self.speak_delay_seconds)
                 self.awaiting_audio_delay = False
 
-            if not self.suppress_audio_output and self.output_stream:
+            # 音声出力が抑制されている場合はスキップ
+            if self.suppress_audio_output:
+                logger.debug("🔇 音声出力が抑制されています（キャンセル済み）")
+                return
+            
+            if self.output_stream:
                 self.output_stream.write(audio_data)
 
         except Exception as e:
@@ -422,6 +439,11 @@ class RealtimeAudioHandler:
     def _initialize_audio_streams(self):
         """音声ストリームの初期化"""
         try:
+            # PyAudioの初期化（遅延初期化）
+            if self.audio is None:
+                self.audio = pyaudio.PyAudio()
+                logger.info("PyAudio初期化完了")
+
             # 入力ストリーム（マイク）
             self.input_stream = self.audio.open(
                 format=self.audio_config.format,
@@ -535,6 +557,8 @@ class RealtimeAudioHandler:
 
     def list_audio_devices(self):
         """利用可能な音声デバイスを一覧表示"""
+        if self.audio is None:
+            self.audio = pyaudio.PyAudio()
         logger.info("=== 音声デバイス一覧 ===")
         for i in range(self.audio.get_device_count()):
             info = self.audio.get_device_info_by_index(i)
