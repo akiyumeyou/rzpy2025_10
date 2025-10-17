@@ -1,98 +1,322 @@
-# 高齢者向け安否確認システム - 実装手順書（改訂版）
+# 高齢者向け安否確認システム - 実装手順書
 
-## 1. 目的と全体像
-- 実運用に耐える統合フロー（起動 → リアルタイム会話 → 感情分析・DB記録 → Google シート要約 → Gmail 通知）を確実に完結させる。
-- 既存のリアルタイム会話品質を維持しつつ、アーキテクチャとファイル構成をプロダクション品質へ再構築する。
-- 将来のスケジューラー連携やラズパイ運用を見据えた拡張性・保守性を確保する。
+## 1. プロジェクト概要
 
-## 2. 新アーキテクチャ概要
+### 1.1 システム構成
+このシステムは、OpenAI Realtime APIを中心としたリアルタイム音声会話システムに、感情分析、データ記録、外部連携（Google Sheets / Gmail）を統合した高齢者見守り支援システムです。
+
+### 1.2 技術スタック
+- **プログラミング言語**: Python 3.11+
+- **音声処理**: OpenAI Realtime API (WebSocket)
+- **音声I/O**: PyAudio
+- **データベース**: SQLite3
+- **外部API**: Google Sheets API, Gmail API
+- **認証**: Google OAuth2, Service Account
+
+---
+
+## 2. 実装フェーズと完了状況
+
+### Phase 1: リアルタイム音声会話システム ✅ **完了**
+
+**目標**: OpenAI Realtime APIを使った高品質な音声会話の実現
+
+**実装内容**:
+- ✅ `audio_handler.py`: リアルタイム音声処理クラス
+  - WebSocket接続管理
+  - 音声入力のストリーミング送信
+  - 音声出力の受信・再生
+  - Server VAD（音声検知）の活用
+- ✅ `main.py`: メインアプリケーション
+  - 時間帯別挨拶機能
+  - 終了コマンド検知
+  - 会話フロー管理
+- ✅ `prompt_design.md`: 高齢者向けプロンプト設計
+  - 共感的な対話スタイル
+  - 短く簡潔な応答
+  - 脳トレ・記憶ゲーム提案
+
+**成果物**:
+- リアルタイムで自然な音声会話が可能
+- 遅延が少なく、音声認識精度が高い
+- 終了コマンドで適切に会話終了
+
+---
+
+### Phase 2: 感情分析・データ記録 ✅ **完了**
+
+**目標**: 会話内容の分析と永続化
+
+**実装内容**:
+- ✅ `emotion_analyzer.py`: 感情分析システム
+  - キーワード辞書ベースの感情分析
+  - 6つの感情カテゴリ分類（positive, negative, anxious, depressed, energetic, neutral）
+  - 健康指標の抽出（痛み、疲労、睡眠、食欲、服薬など）
+  - 信頼度スコアの算出
+- ✅ `emotion_analyzer.py`: データベース管理
+  - SQLiteでの会話記録保存
+  - 感情分析結果の記録
+  - 最近の会話取得API
+  - 感情トレンド分析API
+- ✅ `safety_checker.py`: 安否確認ロジック
+  - SafetyStatus判定（safe, needs_attention, emergency, unknown）
+  - 緊急キーワード検知
+  - フォローアップ必要性判定
+
+**成果物**:
+- 会話ごとの感情分析レポート
+- データベースに蓄積された会話履歴
+- 時系列での感情トレンド分析が可能
+
+---
+
+### Phase 3: 外部連携・通知機能 ✅ **完了**
+
+**目標**: 家族との情報共有と異常時の自動通知
+
+**実装内容**:
+- ✅ `google_sheets.py`: Google Sheets連携
+  - gspread による Sheets API 利用
+  - Service Account 認証
+  - 会話記録の自動追加
+  - 安否ステータスに応じた色分け
+  - 最近の記録取得・サマリーレポート生成
+- ✅ `email_notifier.py`: Gmail 通知システム
+  - Gmail API + OAuth2 認証
+  - 異常検知時の自動メール送信
+  - 通知条件判定（emergency, needs_attention, 感情スコア低下）
+  - 家族への詳細レポート送信
+
+**成果物**:
+- 会話記録がGoogle Sheetsにリアルタイム保存
+- 異常時に家族へ自動メール通知
+- 視覚的に分かりやすい記録管理
+
+---
+
+### Phase 4: 定時自動実行・スケジューラー ⚠️ **部分実装**
+
+**目標**: 指定時刻に自動的に安否確認を実行
+
+**実装内容**:
+- ✅ `scheduler.py`: スケジューラーモジュール
+  - schedule ライブラリによる定時実行
+  - 複数時刻のスケジュール管理
+  - スケジュールの有効化/無効化
+  - 時報アナウンス機能
+- ⚠️ `main.py`への統合: **未完了**
+  - 現在は手動実行のみ
+  - スケジューラーを main.py に統合する必要あり
+- 📋 Raspberry Pi 自動起動: **未実装**
+  - systemd サービス化
+  - 起動時の自動実行設定
+
+**今後の作業**:
+1. `main.py` にスケジューラー統合
+2. Raspberry Pi での動作テスト
+3. systemd サービスファイル作成
+4. 自動起動設定の文書化
+
+---
+
+### Phase 5: エラーハンドリング・耐障害性 📋 **未実装**
+
+**目標**: ネットワーク障害やエラー発生時の適切な対応
+
+**計画中の実装**:
+- 📋 ネットワーク切断時の再接続処理
+- 📋 音声認識失敗時のリトライ機構
+- 📋 API呼び出しのタイムアウト管理
+- 📋 オフライン時の基本機能継続
+- 📋 エラーログの詳細記録と分析
+
+---
+
+### Phase 6: ダッシュボード・可視化 📋 **未実装**
+
+**目標**: 家族向けのWebダッシュボード
+
+**計画中の実装**:
+- 📋 Flask/FastAPI による Web アプリケーション
+- 📋 感情トレンドのグラフ表示
+- 📋 安否確認履歴の一覧表示
+- 📋 リアルタイム通知の表示
+- 📋 設定変更UI
+
+---
+
+## 3. ファイル構成と役割
+
+### 3.1 コアモジュール（実装済み）
+
+| ファイル | 役割 | 状態 |
+|---------|-----|------|
+| `main.py` | メインアプリケーション | ✅ 完了 |
+| `modules/audio_handler.py` | リアルタイム音声処理 | ✅ 完了 |
+| `modules/emotion_analyzer.py` | 感情分析・DB管理 | ✅ 完了 |
+| `modules/safety_checker.py` | 安否確認ロジック | ✅ 完了 |
+| `modules/google_sheets.py` | Google Sheets連携 | ✅ 完了 |
+| `modules/email_notifier.py` | Gmail通知 | ✅ 完了 |
+| `modules/config.py` | 設定管理 | ✅ 完了 |
+| `modules/logger.py` | ログ管理 | ✅ 完了 |
+
+### 3.2 部分実装・未使用モジュール
+
+| ファイル | 役割 | 状態 |
+|---------|-----|------|
+| `modules/scheduler.py` | 定時実行スケジューラー | ⚠️ 実装済み、統合未完了 |
+| `modules/time_announcement.py` | 時報機能 | 📋 実装済み、未使用 |
+| `modules/daily_conversation.py` | 日次会話管理 | 📋 実装済み、未使用 |
+
+---
+
+## 4. 設定と認証
+
+### 4.1 必須環境変数（`.env`）
+
+```bash
+# OpenAI API
+OPENAI_API_KEY=sk-...
+
+# ユーザー情報
+CARE_USER_NAME=利用者名
 ```
-project_root/
-├── app/
-│   ├── main.py                # エントリーポイント（DI & フロー起動）
-│   ├── cli.py                 # CLI／引数ルーティング
-│   └── runtime.py             # 起動〜終了の高レベル制御
-├── core/
-│   ├── conversation/
-│   │   ├── session.py         # 会話セッション状態・フロー制御
-│   │   └── pipeline.py        # 会話開始/終了と後処理のシナリオ管理
-│   ├── analysis/
-│   │   ├── emotion_service.py # 感情分析＋DB記録の統合
-│   │   └── models.py          # ConversationResult 等の共通 DTO
-│   └── notifications/
-│       └── notifier_service.py# 通知判定と実行のオーケストレーション
-├── infrastructure/
-│   ├── audio/
-│   │   └── realtime_handler.py# 既存 RealtimeAudioHandler を移設（内部ロジックは維持）
-│   ├── db/
-│   │   └── sqlite_repository.py# SQLite アクセス層（安全なマイグレーション）
-│   ├── google/
-│   │   ├── sheets_client.py   # gspread ラッパー
-│   │   └── gmail_client.py    # Gmail API ラッパー
-│   └── logging/
-│       └── logger.py          # ログ設定
-├── shared/
-│   ├── config.py              # .env & 資格情報ローダー
-│   ├── exceptions.py          # 共通例外
-│   └── utils.py               # 汎用ユーティリティ
-├── tests/
-│   ├── core/...
-│   └── e2e/...
-└── credentials/, data/, docs/, requirements.txt など
+
+### 4.2 オプション環境変数
+
+```bash
+# Google Sheets連携
+GOOGLE_SPREADSHEET_ID=spreadsheet_id
+
+# Gmail通知
+GMAIL_USER=your_email@gmail.com
+FAMILY_EMAILS=family1@example.com,family2@example.com
 ```
-- `infrastructure/audio/realtime_handler.py` には現行 `modules/audio_handler.py` を移設し、インタフェース層からの利用方法のみ調整する。
-- 会話結果モデルは `core/analysis/models.py` に統合し、Google Sheets や通知が同一データを参照できるようにする。
 
-## 3. 段階的移行ロードマップ
-### Stage 0: 基盤整備とバックアップ
-- 現行リポジトリをブランチ切り分け（例: `feature/system-refactor`）。
-- `modules/audio_handler.py` の回帰テストを確認し、既存の会話品質が維持されていることを記録。
-- `.env` と `credentials/` のバックアップと差異整理。
+### 4.3 認証ファイル
 
-### Stage 1: ディレクトリと設定層の再構築
-- `shared/config.py` を新設し、`.env` とサービスアカウント JSON ロードを一元管理。
-- `modules/logger.py` を `infrastructure/logging/logger.py` に移し、全ファイルで import を更新。
-- 既存 `main.py` を `app/main.py` へ移動し、最低限の DI ラッパに簡素化（ロジックは後続ステージで整理）。
+| ファイル | 用途 | 配置場所 |
+|---------|-----|---------|
+| `google_service_account.json` | Google Sheets認証 | `credentials/` |
+| `credentials.json` | Gmail OAuth2 | `data/` |
+| `token.json` | Gmail認証トークン | `data/` (自動生成) |
 
-### Stage 2: 会話コアの分離とフロー整備
-- `core/conversation/session.py` を実装し、リアルタイム会話ハンドラのセッション管理・コールバック束ねを移行。
-- `core/conversation/pipeline.py` を作成して、起動挨拶・リアルタイム会話開始・終了判定・後処理呼び出しをまとめる。
-- `app/runtime.py` で `pipeline` を呼び出すだけの構造へ変換。リアルタイム会話ロジックには手を入れず、インタフェースのみ整える。
+---
 
-### Stage 3: 感情分析と DB 永続化の再設計
-- `core/analysis/models.py` に `ConversationResult`, `EmotionAnalysis` 等を定義し、会話・分析・通知で共有。
-- `EmotionRecordManager` を `core/analysis/emotion_service.py` に作り直し、`infrastructure/db/sqlite_repository.py` を経由して安全に保存（DROP TABLE を廃止）。
-- 既存 DB をマイグレーションする場合は schema バージョン管理（例: `Alembic` またはカスタムマイグレーション）を導入。
+## 5. 開発・運用ガイド
 
-### Stage 4: 外部連携の刷新
-- `infrastructure/google/sheets_client.py` で gspread の遅延初期化とワークシート生成処理を整備。
-- Gmail API ( `google-api-python-client` ) による通知送信を `infrastructure/google/gmail_client.py` に実装し、家族通知ロジックを `core/notifications/notifier_service.py` に集約。
-- Google Sheets への書き込みやメール通知条件を `pipeline` の後処理に組み込む。
+### 5.1 開発環境でのテスト
 
-### Stage 5: 統合テストと運用準備
-- `tests/core/` にユニットテスト（感情分析、通知判定など）、`tests/e2e/` に擬似会話フローの統合テストを追加。
-- `.github/workflows/` 等で CI 設定（必要なら）。
-- README / ドキュメント更新、ラズパイ deploy 手順整理。
+```bash
+# 仮想環境の有効化
+source venv/bin/activate
 
-## 4. 検証と品質確保
-- **会話回帰テスト**: Stage 2 完了後に必ず実機でリアルタイム会話をテストし、挙動が変わらないことを確認。
-- **DB 永続化テスト**: Stage 3 で既存データが保持されること、再起動で過去会話が残ることを確認。
-- **Google Sheets / Gmail**: Stage 4 で sandbox 環境（別スプレッドシート・ダミーアカウント）を使い、権限・通信を検証。
-- **エラーハンドリング**: ネットワーク遮断・API 失敗時の例外が適切に処理され、ログに記録されるか確認。
+# 依存パッケージのインストール
+pip install -r requirements.txt
 
-## 5. 依存関係と環境設定
-- `requirements.txt` に以下を追加・整理：
-  - `google-api-python-client`, `google-auth-httplib2`, `google-auth-oauthlib`（Gmail API）
-  - `gspread`, `google-auth`（Google Sheets）
-  - 既存: `openai`, `pyaudio`, `websockets`, `python-dotenv`, `tqdm` 等
-- `.env` に必要なキー：
-  - `OPENAI_API_KEY`
-  - `OPENAI_REALTIME_MODEL`（例: `gpt-4o-realtime-preview-2024-10-01`）
-  - `GOOGLE_SPREADSHEET_ID`
-  - `GOOGLE_APPLICATION_CREDENTIALS`（サービスアカウント JSON パス）
-  - `GMAIL_USER`, `GMAIL_CLIENT_SECRET_PATH`, `GMAIL_TOKEN_PATH` 等
+# メインプログラムの実行
+python main.py
+```
 
-## 6. ドキュメント更新タスク一覧
-1. README に新しい実行方法／フォルダ構成を反映。
-2. 本手順書に沿って進捗を記録し、ステージごとにチェックリストを更新。
-3. Google Sheets / Gmail 設定手順を `docs/google_sheets_setup.md` へ追記、Gmail API 版の手順書を新設。
+### 5.2 Google Sheets連携のテスト
+
+```bash
+# Google Sheets接続テスト
+python modules/google_sheets.py
+```
+
+### 5.3 Gmail通知のテスト
+
+```bash
+# Gmail通知システムのテスト
+python modules/email_notifier.py
+```
+
+### 5.4 本番環境（Raspberry Pi）へのデプロイ（計画中）
+
+**手順**:
+1. Raspberry Pi OS のセットアップ
+2. Python 3.11+ のインストール
+3. プロジェクトのクローン
+4. 依存パッケージのインストール
+5. 環境変数の設定
+6. systemd サービス化
+7. 自動起動の有効化
+
+---
+
+## 6. 今後の課題と改善点
+
+### 6.1 機能面の課題
+
+1. **定時自動実行の統合**
+   - スケジューラーモジュールをmain.pyに統合
+   - 複数ユーザー対応
+
+2. **エラーハンドリングの強化**
+   - ネットワーク障害への対応
+   - API呼び出しのリトライ機構
+
+3. **オフライン対応**
+   - ネットワーク切断時の基本機能維持
+   - ローカルでの会話記録保存
+
+### 6.2 システム面の課題
+
+1. **Raspberry Pi対応**
+   - PyAudioの動作確認
+   - 音声デバイス設定の最適化
+   - systemdサービス化
+
+2. **セキュリティ**
+   - 認証情報の安全な管理
+   - 通信の暗号化
+
+3. **パフォーマンス**
+   - 音声処理の最適化
+   - データベースクエリの効率化
+
+### 6.3 ユーザビリティ
+
+1. **設定UIの提供**
+   - Webベースの設定画面
+   - スケジュール管理UI
+
+2. **家族向けダッシュボード**
+   - 会話履歴の可視化
+   - 感情トレンドのグラフ表示
+
+---
+
+## 7. まとめ
+
+### 7.1 現在の完成度
+
+- **Phase 1（音声会話）**: ✅ 100% 完了
+- **Phase 2（感情分析・記録）**: ✅ 100% 完了
+- **Phase 3（外部連携・通知）**: ✅ 100% 完了
+- **Phase 4（定時実行）**: ⚠️ 60% 完了（スケジューラー実装済み、統合未完了）
+- **Phase 5（エラー処理）**: 📋 20% 完了（基本的なログのみ）
+- **Phase 6（ダッシュボード）**: 📋 0% 未着手
+
+**総合完成度**: 約 **70%**
+
+### 7.2 実運用に向けて
+
+現在のシステムは、手動実行による安否確認システムとしては**実用レベル**に達しています。
+
+**すぐに使える機能**:
+- リアルタイム音声会話
+- 感情分析と安否判定
+- Google Sheetsへの記録
+- 異常時のメール通知
+
+**実運用に必要な追加作業**:
+- 定時自動実行の統合
+- Raspberry Piでの動作確認
+- systemdサービス化
+- エラーハンドリングの強化
+
+---
+
+**最終更新**: 2025年9月30日
